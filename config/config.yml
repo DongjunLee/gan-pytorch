@@ -1,0 +1,27 @@
+data:
+  path: "data/"
+  z_dim: 100     # Random noise dimension coming into generator, per output vector
+  real_dim: 784
+
+model:
+  g_h1: 256
+  g_h2: 512
+  g_h3: 1024
+
+  d_h1: 1024
+  d_h2: 512
+  d_h3: 256
+
+  dropout: 0.3
+
+train:
+  batch_size: 64
+  num_epochs: 200
+
+  d_learning_rate: 0.0002  # 2e-4
+  g_learning_rate: 0.0002
+  optim_betas:
+    - 0.9
+    - 0.999
+
+  print_interval: 1
