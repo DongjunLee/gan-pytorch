@@ -14,18 +14,18 @@ class Model:
     def __init__(self, mode):
         self.mode = mode
 
-    def build(self, data_loader):
+    def build_fn(self):
         gan = GAN()
 
         if self.mode == "train":
             criterion = self.build_criterion()
             d_optimizer, g_optimizer = self.build_optimizers(gan.discriminator, gan.generator)
 
-            gan.train(data_loader, criterion, d_optimizer, g_optimizer)
+            return gan.train_fn(criterion, d_optimizer, g_optimizer)
         elif self.mode == "evaluate":
-            gan.evaluate(data_loader)
+            return gan.evaluate_fn
         elif self.mode == "predict":
-            gan.predict(data_loader)
+            return gan.predict_fn
         else:
             raise ValueError(f"unknown mode: {self.mode}")
 

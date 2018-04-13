@@ -22,11 +22,14 @@ class GAN:
                                            h3=Config.model.d_h3,
                                            out=1, dropout=Config.model.dropout)
 
-    def train(self, data_loader, criterion, d_optimizer, g_optimizer):
-
+    def train_fn(self, criterion, d_optimizer, g_optimizer):
         self.criterion = criterion
         self.d_optimizer = d_optimizer
         self.g_optimizer = g_optimizer
+
+        return self._train
+
+    def _train(self, data_loader):
 
         for epoch in range(Config.train.num_epochs):
             for n, (images, _) in enumerate(data_loader):
@@ -78,8 +81,8 @@ class GAN:
         self.g_optimizer.step()
         return g_loss
 
-    def evaluate(self):
+    def evaluate_fn(self):
         pass
 
-    def predict(self):
+    def predict_fn(self):
         pass
