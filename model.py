@@ -1,48 +1,46 @@
 
+from hbconfig import Config
+
 import torch.nn as nn
+import torch.optim as optim
+
+from gan import GAN
 
 
 
-class Generator(nn.Module):
 
-    def __init__(self, input, h1, h2, h3, out):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input, h1),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(h1, h2),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(h2, h3),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(h3, out),
-            nn.Tanh()
-        )
+class Model:
 
-    def forward(self, x, z_dim):
-        x = x.view(x.size(0), z_dim)
-        out = self.model(x)
-        return out
+    def __init__(self, mode):
+        self.mode = mode
 
+    def build(self, data_loader):
+        gan = GAN()
 
-class Discriminator(nn.Module):
+        if self.mode == "train":
+            criterion = self.build_criterion()
+            d_optimizer, g_optimizer = self.build_optimizers(gan.discriminator, gan.generator)
 
-    def __init__(self, input, h1, h2, h3, out, dropout):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input, h1),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(h1, h2),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(h2, h3),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(h3, out),
-            nn.Sigmoid()
-        )
+            gan.train(data_loader, criterion, d_optimizer, g_optimizer)
+        elif self.mode == "evaluate":
+            gan.evaluate(data_loader)
+        elif self.mode == "predict":
+            gan.predict(data_loader)
+        else:
+            raise ValueError(f"unknown mode: {self.mode}")
 
-    def forward(self, x, real_dim):
-        out = self.model(x.view(x.size(0), real_dim))
-        out = out.view(out.size(0), -1)
-        return out
+    def build_criterion(self):
+        return nn.BCELoss() # Binary cross entropy
+
+    def build_optimizers(self, discriminator, generator):
+        d_optimizer = optim.Adam(discriminator.parameters(),
+                                 lr=Config.train.d_learning_rate,
+                                 betas=Config.train.optim_betas)
+        g_optimizer = optim.Adam(generator.parameters(),
+                                 lr=Config.train.g_learning_rate,
+                                 betas=Config.train.optim_betas)
+
+        return d_optimizer, g_optimizer
+
+    def build_metric(self):
+        pass
