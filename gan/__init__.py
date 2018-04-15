@@ -3,7 +3,9 @@ from hbconfig import Config
 
 import torch
 from torch.autograd import Variable
+from torchvision.utils import save_image
 
+from . import utils
 from .module import Discriminator, Generator
 
 
@@ -11,68 +13,100 @@ from .module import Discriminator, Generator
 class GAN:
 
     def __init__(self):
-        self.generator = Generator(input=Config.data.z_dim,
-                                   h1=Config.model.g_h1,
-                                   h2=Config.model.g_h2,
-                                   h3=Config.model.g_h3,
-                                   out=Config.data.real_dim)
-        self.discriminator = Discriminator(input=Config.data.real_dim,
+        self.prev_step_count = 0
+        self.tensorboard = utils.TensorBoard(Config.train.model_dir)
+
+        self.discriminator = Discriminator(input=Config.model.real_dim,
                                            h1=Config.model.d_h1,
                                            h2=Config.model.d_h2,
                                            h3=Config.model.d_h3,
                                            out=1, dropout=Config.model.dropout)
+        self.generator = Generator(input=Config.model.z_dim,
+                                   h1=Config.model.g_h1,
+                                   h2=Config.model.g_h2,
+                                   h3=Config.model.g_h3,
+                                   out=Config.model.real_dim)
 
-    def train_fn(self, criterion, d_optimizer, g_optimizer):
+        self.d_optimizer = None
+        self.g_optimizer = None
+
+    def train_fn(self, criterion, d_optimizer, g_optimizer, resume=True):
         self.criterion = criterion
         self.d_optimizer = d_optimizer
         self.g_optimizer = g_optimizer
 
+        if resume:
+            self.prev_step_count, self.discriminator, self.d_optimizer = utils.load_saved_model(
+                    f"{Config.train.model_dir}/discriminator", self.discriminator, self.d_optimizer)
+            _, self.generator, self.g_optimizer = utils.load_saved_model(
+                    f"{Config.train.model_dir}/generator", self.generator, self.g_optimizer)
+
         return self._train
 
     def _train(self, data_loader):
-
         for epoch in range(Config.train.num_epochs):
-            for n, (images, _) in enumerate(data_loader):
-                images = Variable(images)
-                real_labels = Variable(torch.ones(images.size(0)))
+            d_loss, g_loss = self._train_epoch(data_loader)
 
-                # Sample from generator
-                noise = Variable(torch.randn(images.size(0), Config.data.z_dim))
-                fake_images = self.generator(noise, Config.data.z_dim)
-                fake_labels = Variable(torch.zeros(images.size(0)))
+    def _train_epoch(self, data_loader):
+        for curr_step_count, (images, _) in enumerate(data_loader):
+            step_count = self.prev_step_count + curr_step_count + 1 # init value
 
-                # Train the discriminator
-                d_loss, real_score, fake_score = self._train_discriminator(
-                        self.discriminator, images, real_labels, fake_images, fake_labels)
+            images = Variable(images)
+            real_labels = Variable(torch.ones(images.size(0)))
 
-                # Sample again from the generator and get output from discriminator
-                noise = Variable(torch.randn(images.size(0), Config.data.z_dim))
-                fake_images = self.generator(noise, Config.data.z_dim)
-                outputs = self.discriminator(fake_images, Config.data.real_dim)
+            # Sample from generator
+            noise = Variable(torch.randn(images.size(0), Config.model.z_dim))
+            fake_images = self.generator(noise, Config.model.z_dim)
+            fake_labels = Variable(torch.zeros(images.size(0)))
 
-                # Train the generator
-                g_loss = self._train_generator(self.generator, outputs, real_labels)
+            # Train the discriminator
+            d_loss = self._train_discriminator(
+                    self.discriminator, images, real_labels, fake_images, fake_labels)
 
-            if epoch % Config.train.print_interval == 0:
-                print('Epoch [%d/%d], Step[%d/%d], d_loss: %.4f, g_loss: %.4f, '
-                          'D(x): %.2f, D(G(z)): %.2f'
-                          %(epoch + 1, Config.train.num_epochs, n+1, Config.train.batch_size, d_loss.data[0], g_loss.data[0],
-                            real_score.data.mean(), fake_score.data.mean()))
+            # Sample again from the generator and get output from discriminator
+            noise = Variable(torch.randn(images.size(0), Config.model.z_dim))
+            fake_images = self.generator(noise, Config.model.z_dim)
+            outputs = self.discriminator(fake_images, Config.model.real_dim)
+
+            # Train the generator
+            g_loss = self._train_generator(self.generator, outputs, real_labels)
+
+            # Step Verbose & Tensorboard Summary
+            if step_count % Config.train.verbose_step_count == 0:
+                self._add_summary(step_count, {
+                    "Loss": d_loss.data[0] + g_loss.data[0],
+                    "D_Loss": d_loss.data[0],
+                    "G_Loss": g_loss.data[0]
+                })
+
+                print(f"Step {step_count} - D_Loss: {d_loss.data[0]}, G_Loss: {g_loss.data[0]}")
+
+            # Save model parameters
+            if step_count % Config.train.save_checkpoints_steps == 0:
+                utils.save_checkpoint(step_count,
+                                      f"{Config.train.model_dir}/discriminator",
+                                      self.discriminator,
+                                      self.d_optimizer)
+                utils.save_checkpoint(step_count,
+                                      f"{Config.train.model_dir}/generator",
+                                      self.generator,
+                                      self.g_optimizer)
+
+        self.prev_step_count = step_count
+        return d_loss, g_loss
 
     def _train_discriminator(self, discriminator, images, real_labels, fake_images, fake_labels):
         discriminator.zero_grad()
-        outputs = discriminator(images, Config.data.real_dim)
-        real_loss = self.criterion(outputs, real_labels)
-        real_score = outputs
+        real_outputs = discriminator(images, Config.model.real_dim)
+        real_loss = self.criterion(real_outputs, real_labels)
 
-        outputs = discriminator(fake_images, Config.data.real_dim)
-        fake_loss = self.criterion(outputs, fake_labels)
-        fake_score = outputs
+        fake_outputs = discriminator(fake_images, Config.model.real_dim)
+        fake_loss = self.criterion(fake_outputs, fake_labels)
 
         d_loss = real_loss + fake_loss
         d_loss.backward()
         self.d_optimizer.step()
-        return d_loss, real_score, fake_score
+        return d_loss
 
     def _train_generator(self, generator, discriminator_outputs, real_labels):
         generator.zero_grad()
@@ -81,8 +115,20 @@ class GAN:
         self.g_optimizer.step()
         return g_loss
 
+    def _add_summary(self, step, summary):
+        for tag, value in summary.items():
+            self.tensorboard.scalar_summary(tag, value, step)
+
     def evaluate_fn(self):
         pass
 
     def predict_fn(self):
-        pass
+        return self._generate_image
+
+    def _generate_image(self, batch_size):
+        noise = Variable(torch.randn(batch_size, Config.model.z_dim))
+        outputs = self.generator(noise, Config.model.z_dim)
+
+        fake_images = outputs.view(batch_size, 1, 28, 28)
+        save_image(utils.denorm(fake_images), "generate_images.png")
+        print("finished generate images..!")
