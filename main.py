@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from hbconfig import Config
-import numpy as np
 
 import argparse
 import atexit
@@ -16,10 +15,10 @@ def main(mode):
     model = Model(mode)
     model_func = model.build_fn()
 
-    if mode == "train":
+    if mode == Model.TRAIN_MODE:
         train_loader = make_data_loader("train", Config.train.batch_size)
         model_func(train_loader)
-    elif mode == "generate":
+    elif mode == Model.PREDICT_MODE:
         model_func(Config.predict.batch_size)
     else:
         raise ValueError(f"unknown mode: {self.mode}")
