@@ -15,7 +15,7 @@ def load_saved_model(path, model, optimizer):
 
     step_count = checkpoint['step_count']
     model.load_state_dict(checkpoint['model'])
-    if optimizer is None:
+    if optimizer is not None:
         optimizer.load_state_dict(checkpoint['optimizer'])
 
     print(f"Load checkpoints...! {latest_path}")

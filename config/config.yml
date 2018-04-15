@@ -30,7 +30,7 @@ train:
   verbose_step_count: 100
 
 predict:
-  batch_size: 16
+  batch_size: 64
 
 slack:
   webhook_url: ""  # after training notify you using slack-webhook

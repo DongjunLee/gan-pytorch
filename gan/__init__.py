@@ -12,6 +12,9 @@ from .module import Discriminator, Generator
 
 class GAN:
 
+    D_PATH = f"{Config.train.model_dir}/discriminator"
+    G_PATH = f"{Config.train.model_dir}/generator"
+
     def __init__(self):
         self.prev_step_count = 0
         self.tensorboard = utils.TensorBoard(Config.train.model_dir)
@@ -37,9 +40,9 @@ class GAN:
 
         if resume:
             self.prev_step_count, self.discriminator, self.d_optimizer = utils.load_saved_model(
-                    f"{Config.train.model_dir}/discriminator", self.discriminator, self.d_optimizer)
+                    self.D_PATH, self.discriminator, self.d_optimizer)
             _, self.generator, self.g_optimizer = utils.load_saved_model(
-                    f"{Config.train.model_dir}/generator", self.generator, self.g_optimizer)
+                    self.G_PATH, self.generator, self.g_optimizer)
 
         return self._train
 
@@ -84,11 +87,11 @@ class GAN:
             # Save model parameters
             if step_count % Config.train.save_checkpoints_steps == 0:
                 utils.save_checkpoint(step_count,
-                                      f"{Config.train.model_dir}/discriminator",
+                                      self.D_PATH,
                                       self.discriminator,
                                       self.d_optimizer)
                 utils.save_checkpoint(step_count,
-                                      f"{Config.train.model_dir}/generator",
+                                      self.G_PATH,
                                       self.generator,
                                       self.g_optimizer)
 
@@ -123,6 +126,10 @@ class GAN:
         pass
 
     def predict_fn(self):
+        # Load model
+        self.prev_step_count, self.generator, _ = utils.load_saved_model(
+                self.G_PATH, self.generator, None)
+
         return self._generate_image
 
     def _generate_image(self, batch_size):
@@ -130,5 +137,5 @@ class GAN:
         outputs = self.generator(noise, Config.model.z_dim)
 
         fake_images = outputs.view(batch_size, 1, 28, 28)
-        save_image(utils.denorm(fake_images), "generate_images.png")
+        save_image(utils.denorm(fake_images.data), f"generate_images-{self.prev_step_count}.png")
         print("finished generate images..!")
