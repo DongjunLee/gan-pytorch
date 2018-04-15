@@ -18,7 +18,7 @@ model:
 train:
   model_dir: "logs/gan"
   batch_size: 64
-  num_epochs: 200
+  train_steps: 200000
 
   d_learning_rate: 0.0002  # 2e-4
   g_learning_rate: 0.0002

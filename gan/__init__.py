@@ -1,5 +1,6 @@
 
 from hbconfig import Config
+import sys
 
 import torch
 from torch.autograd import Variable
@@ -47,7 +48,7 @@ class GAN:
         return self._train
 
     def _train(self, data_loader):
-        for epoch in range(Config.train.num_epochs):
+        while True:
             d_loss, g_loss = self._train_epoch(data_loader)
 
     def _train_epoch(self, data_loader):
@@ -94,6 +95,9 @@ class GAN:
                                       self.G_PATH,
                                       self.generator,
                                       self.g_optimizer)
+
+            if step_count >= Config.train.train_steps:
+                sys.exit()
 
         self.prev_step_count = step_count
         return d_loss, g_loss

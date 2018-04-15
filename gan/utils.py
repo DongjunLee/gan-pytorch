@@ -11,6 +11,9 @@ import torch
 
 def load_saved_model(path, model, optimizer):
     latest_path = find_latest(path)
+    if latest_path is None:
+        return 0, model, optimizer
+
     checkpoint = torch.load(latest_path)
 
     step_count = checkpoint['step_count']
@@ -23,7 +26,11 @@ def load_saved_model(path, model, optimizer):
 
 
 def find_latest(find_path):
-    return get_sorted_path(find_path)[-1]
+    sorted_path = get_sorted_path(find_path)
+    if len(sorted_path) == 0:
+        return None
+
+    return sorted_path[-1]
 
 
 def save_checkpoint(step, path, model, optimizer, max_to_keep=10):
