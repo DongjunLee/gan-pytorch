@@ -8,6 +8,7 @@ import atexit
 
 from data_loader import make_data_loader
 from model import Model
+import utils
 
 
 
@@ -19,8 +20,7 @@ def main(mode):
         train_loader = make_data_loader("train", Config.train.batch_size)
         model_func(train_loader)
     elif mode == "generate":
-        latent_z = np.random.normal(0, 1)
-        model_func(latent_z)
+        model_func(Config.predict.batch_size)
     else:
         raise ValueError(f"unknown mode: {self.mode}")
 
@@ -44,6 +44,6 @@ if __name__ == '__main__':
             print(f" - {key}: {value}")
 
     # After terminated Notification to Slack
-    # atexit.register(utils.send_message_to_slack, config_name=args.config)
+    atexit.register(utils.send_message_to_slack, config_name=args.config)
 
     main(args.mode)
